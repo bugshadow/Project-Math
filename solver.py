@@ -18,167 +18,189 @@ class SimplexSolver:
         self.status = "Initialized"
 
     def solve(self):
-        # 1. Convert to Standard Form (Add Slack Variables)
-        # Tableau structure:
-        # [ A | I | b ]
-        # [ -c | 0 | 0 ]
+        # --- Step 1: Standard Form ---
+        # Maximize Z = c.x
+        # Subject to Ax + Is = b
+        # x >= 0, s >= 0
         
-        tableau = np.zeros((self.num_constraints + 1, self.num_vars + self.num_constraints + 1))
+        # Extended A matrix [A | I]
+        A_std = np.hstack([self.A, np.eye(self.num_constraints)])
         
-        # Fill A
-        tableau[:self.num_constraints, :self.num_vars] = self.A
+        # Extended c vector [c | 0]
+        c_std = np.concatenate([self.c, np.zeros(self.num_constraints)])
         
-        # Fill Identity (Slack variables)
-        tableau[:self.num_constraints, self.num_vars:self.num_vars + self.num_constraints] = np.eye(self.num_constraints)
+        # Variables names
+        var_names = [f'x{i+1}' for i in range(self.num_vars)] + \
+                    [f's{i+1}' for i in range(self.num_constraints)]
         
-        # Fill b
-        tableau[:self.num_constraints, -1] = self.b
+        # --- Step 2: Initial Base Selection ---
+        # We choose slack variables as the initial base
+        # Base indices (0-based)
+        basic_indices = list(range(self.num_vars, self.num_vars + self.num_constraints))
+        non_basic_indices = list(range(self.num_vars))
         
-        # Fill c (Objective function row, negated for maximization)
-        tableau[-1, :self.num_vars] = -self.c
-        
-        # Column headers
-        col_headers = [f'x{i+1}' for i in range(self.num_vars)] + \
-                      [f's{i+1}' for i in range(self.num_constraints)] + ['RHS']
-        
-        # Row headers (Basic variables)
-        # Initially, slack variables are basic
-        basic_vars = [f's{i+1}' for i in range(self.num_constraints)]
+        # Initial Base Matrix B (Identity)
+        B = A_std[:, basic_indices]
         
         self.steps.append({
-            "step_name": "Initial Tableau",
-            "tableau": tableau.copy(),
-            "headers": col_headers,
-            "basic_vars": basic_vars.copy(),
-            "pivot": None,
-            "description": "Tableau initial avec variables d'écart ajoutées."
+            "step_type": "initialization",
+            "step_name": "Initialisation",
+            "description": "Choix de la base initiale (variables d'écart).",
+            "matrices": {
+                "A_std": A_std,
+                "c_std": c_std,
+                "b": self.b,
+                "B_init": B,
+                "var_names": var_names,
+                "basic_indices": basic_indices
+            }
         })
         
         iteration = 0
         max_iterations = 100
         
         while iteration < max_iterations:
-            # Check for optimality: if all coefficients in the bottom row are >= 0
-            if np.all(tableau[-1, :-1] >= -1e-9):
-                self.status = "Optimal"
-                break
-                
-            # Select Pivot Column (Entering Variable) - Most negative coefficient
-            pivot_col = np.argmin(tableau[-1, :-1])
-            entering_var = col_headers[pivot_col]
-            
-            # Select Pivot Row (Leaving Variable) - Minimum Ratio Test
-            # ratio = b / column_val for column_val > 0
-            ratios = []
-            for i in range(self.num_constraints):
-                val = tableau[i, pivot_col]
-                if val > 1e-9:
-                    ratios.append(tableau[i, -1] / val)
-                else:
-                    ratios.append(np.inf)
-            
-            if np.all(np.array(ratios) == np.inf):
-                self.status = "Unbounded"
-                break
-                
-            pivot_row = np.argmin(ratios)
-            leaving_var = basic_vars[pivot_row]
-            pivot_element = tableau[pivot_row, pivot_col]
-            
-            # Store Matrix Details for this step
-            # B = Matrix of basic columns from original A (augmented with slack)
-            # We need to reconstruct the full initial matrix to extract B correctly
-            # Initial Tableau (without objective row) contains [A | I]
-            # Let's reconstruct the full constraint matrix for reference
-            full_A = np.hstack([self.A, np.eye(self.num_constraints)])
-            
-            # Identify indices of basic variables
-            basic_indices = []
-            for var in basic_vars:
-                if var.startswith('x'):
-                    basic_indices.append(int(var[1:]) - 1)
-                else: # slack s_i
-                    basic_indices.append(self.num_vars + int(var[1:]) - 1)
-            
-            B = full_A[:, basic_indices]
+            # 1. Calculate B inverse
             try:
                 B_inv = np.linalg.inv(B)
-            except:
-                B_inv = np.zeros_like(B) # Should not happen in Simplex unless degenerate/error
-
-            # C_B (Coefficients of basic vars in objective function)
-            # Note: Slack vars have 0 coefficient
-            c_B = np.zeros(self.num_constraints)
-            for i, idx in enumerate(basic_indices):
-                if idx < self.num_vars:
-                    c_B[i] = self.c[idx]
-                else:
-                    c_B[i] = 0
-            
-            # X_B = B^-1 * b
+            except np.linalg.LinAlgError:
+                self.status = "Error: Singular Matrix"
+                break
+                
+            # 2. Calculate X_b = B^-1 * b
             x_B = np.dot(B_inv, self.b)
             
-            # Z = c_B * x_B
+            # 3. Calculate Simplex Multipliers (Dual variables) pi = c_B * B^-1
+            # Get c_B (coefficients of basic vars in objective)
+            c_B = c_std[basic_indices]
+            pi = np.dot(c_B, B_inv)
+            
+            # 4. Calculate Reduced Costs (Z_j - C_j) for Non-Basic Variables
+            # Z_j - C_j = pi * A_j - c_j
+            # We want to find entering variable (most negative Z_j - C_j for maximization if we consider C_j - Z_j, 
+            # BUT standard convention often uses Z_j - C_j. 
+            # Let's stick to: We want to maximize. 
+            # Improvement if (c_j - z_j) > 0  <=> (c_j - pi*A_j) > 0
+            # Equivalently, if (z_j - c_j) < 0.
+            # Let's calculate delta_j = z_j - c_j. We enter if delta_j < 0.
+            
+            deltas = {} # Store delta for each non-basic var
+            entering_idx_rel = -1 # Index in non_basic_indices list
+            min_delta = -1e-9 # Threshold for optimality
+            
+            for i, idx in enumerate(non_basic_indices):
+                A_j = A_std[:, idx]
+                z_j = np.dot(pi, A_j)
+                c_j = c_std[idx]
+                delta = z_j - c_j
+                deltas[var_names[idx]] = delta
+                
+                if delta < min_delta:
+                    min_delta = delta
+                    entering_idx_rel = i
+            
+            # Current Objective Value
             z_val = np.dot(c_B, x_B)
-
-            self.steps.append({
-                "step_name": f"Iteration {iteration + 1} - Selection",
-                "tableau": tableau.copy(),
-                "headers": col_headers,
-                "basic_vars": basic_vars.copy(),
-                "pivot": (pivot_row, pivot_col),
+            
+            step_data = {
+                "step_type": "iteration",
+                "step_name": f"Itération {iteration + 1}",
+                "iteration": iteration + 1,
                 "matrices": {
                     "B": B,
                     "B_inv": B_inv,
-                    "c_B": c_B,
                     "x_B": x_B,
-                    "z_val": z_val
+                    "c_B": c_B,
+                    "z_val": z_val,
+                    "deltas": deltas
                 },
-                "description": f"Variable entrante: {entering_var} (coeff: {tableau[-1, pivot_col]:.2f}). "
-                               f"Variable sortante: {leaving_var} (ratio: {ratios[pivot_row]:.2f}). "
-                               f"Pivot: {pivot_element:.2f}."
-            })
+                "basic_vars": [var_names[i] for i in basic_indices],
+                "non_basic_vars": [var_names[i] for i in non_basic_indices]
+            }
             
-            # Perform Pivot Operation
-            # 1. Normalize the pivot row
-            tableau[pivot_row, :] /= pivot_element
+            # Check Optimality
+            if entering_idx_rel == -1:
+                self.status = "Optimal"
+                step_data["description"] = "Tous les coûts réduits (Z_j - C_j) sont positifs ou nuls. Solution optimale atteinte."
+                self.steps.append(step_data)
+                break
+                
+            # Entering Variable
+            entering_global_idx = non_basic_indices[entering_idx_rel]
+            entering_var_name = var_names[entering_global_idx]
             
-            # 2. Eliminate other rows
-            for i in range(self.num_constraints + 1):
-                if i != pivot_row:
-                    factor = tableau[i, pivot_col]
-                    tableau[i, :] -= factor * tableau[pivot_row, :]
+            # 5. Calculate Y = B^-1 * A_entering
+            A_entering = A_std[:, entering_global_idx]
+            Y = np.dot(B_inv, A_entering)
             
-            # Update Basic Variables
-            basic_vars[pivot_row] = entering_var
+            step_data["matrices"]["Y"] = Y
+            step_data["entering_var"] = entering_var_name
             
-            self.steps.append({
-                "step_name": f"Iteration {iteration + 1} - Update",
-                "tableau": tableau.copy(),
-                "headers": col_headers,
-                "basic_vars": basic_vars.copy(),
-                "pivot": None,
-                "matrices": None, # Matrices are relevant before pivot or we can calc them again, but selection step is best for B/B_inv display
-                "description": f"Tableau mis à jour après pivot sur {entering_var} et {leaving_var}."
-            })
+            # 6. Ratio Test (Minimum Ratio)
+            # Ratio = x_B_i / Y_i for Y_i > 0
+            ratios = []
+            leaving_idx_rel = -1
+            min_ratio = np.inf
+            
+            for i in range(self.num_constraints):
+                if Y[i] > 1e-9:
+                    ratio = x_B[i] / Y[i]
+                    ratios.append(ratio)
+                    if ratio < min_ratio:
+                        min_ratio = ratio
+                        leaving_idx_rel = i
+                else:
+                    ratios.append(np.inf)
+            
+            step_data["ratios"] = ratios
+            
+            if leaving_idx_rel == -1:
+                self.status = "Unbounded"
+                step_data["description"] = "Problème non borné (tous les Y_i <= 0)."
+                self.steps.append(step_data)
+                break
+                
+            leaving_global_idx = basic_indices[leaving_idx_rel]
+            leaving_var_name = var_names[leaving_global_idx]
+            
+            step_data["leaving_var"] = leaving_var_name
+            step_data["pivot_element"] = Y[leaving_idx_rel]
+            step_data["description"] = f"Variable entrante : {entering_var_name} (Z-C = {min_delta:.2f}). " \
+                                       f"Variable sortante : {leaving_var_name} (Ratio = {min_ratio:.2f})."
+            
+            self.steps.append(step_data)
+            
+            # Update Base
+            basic_indices[leaving_idx_rel] = entering_global_idx
+            non_basic_indices[entering_idx_rel] = leaving_global_idx
+            
+            # Update B matrix
+            B = A_std[:, basic_indices]
             
             iteration += 1
             
         if iteration == max_iterations:
             self.status = "Max Iterations Reached"
 
-        # Extract Solution
+        # Extract Final Solution
         solution = np.zeros(self.num_vars)
-        for i, var in enumerate(basic_vars):
-            if var.startswith('x'):
-                idx = int(var[1:]) - 1
-                solution[idx] = tableau[i, -1]
-                
-        max_profit = tableau[-1, -1]
         
+        # Recalculate final x_B if we broke out at optimality
+        if self.status == "Optimal":
+            # B and basic_indices are already updated to optimal base? 
+            # No, the loop breaks BEFORE updating if optimal.
+            # So x_B from the last step is the optimal solution.
+            pass
+        
+        # Map basic vars to solution vector
+        # We need to be careful: x_B corresponds to basic_indices
+        for i, idx in enumerate(basic_indices):
+            if idx < self.num_vars: # If it's a decision variable (not slack)
+                solution[idx] = x_B[i]
+                
         return {
             "status": self.status,
-            "max_profit": max_profit,
+            "max_profit": np.dot(self.c, solution),
             "solution": solution,
             "steps": self.steps
         }

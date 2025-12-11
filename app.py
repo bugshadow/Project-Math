@@ -346,127 +346,93 @@ def main():
         """
         st.latex(latex_str)
         
-        st.markdown("### Sous forme matricielle")
-        st.latex(f"""
-        A = {matrix_to_latex(A)}, \\quad
-        x = \\begin{{pmatrix}} x_{{CPU}} \\\\ x_{{RAM}} \\\\ x_{{GPU}} \\end{{pmatrix}}, \\quad
-        b = {matrix_to_latex(b)}, \\quad
-        c = {matrix_to_latex(c)}
-        """)
-        st.markdown(r"Le problème est : maximiser $c^T x$ sous la contrainte $A x \le b$, $x \ge 0$.")
-
-        # --- 2. Résolution Algébrique ---
-        st.markdown("## 2. Résolution Algébrique par Matrices")
-        st.markdown("""
-        L'optimum se trouve sur un **sommet** du polyèdre des contraintes. 
-        Mathématiquement, cela correspond à la résolution d'un système linéaire $B x_B = b$ où $B$ est la matrice formée par les contraintes actives (ou la base optimale).
+        st.markdown("### Forme Standard et Matricielle")
+        st.markdown("On introduit les variables d'écart $s_1, s_2, s_3$ pour transformer les inégalités en égalités.")
+        
+        st.latex(r"""
+        \max Z = c^T x \\
+        \text{sous } A x = b, \quad x \ge 0
         """)
         
-        # Get Optimal Basis from Solver Result
-        # The solver stores steps. The last step (or the one with status Optimal) has the optimal basis.
-        if result["status"] == "Optimal" and result["steps"]:
-            last_step = result["steps"][-1]
-            # If the last step is just an update without matrices, check the previous one or re-calculate
-            # Actually solver stores matrices in "Selection" steps. The final state is after the last update.
-            # Let's use the matrices from the last "Selection" step which led to optimality, 
-            # OR better, let's reconstruct the final basis B from the final basic_vars.
-            
-            final_basic_vars = last_step["basic_vars"]
-            
-            # Reconstruct B for final basic vars
-            # We need the full A matrix (including slacks) to extract columns
-            num_vars = len(c)
-            num_constraints = len(b)
-            full_A = np.hstack([A, np.eye(num_constraints)])
-            
-            basic_indices = []
-            for var in final_basic_vars:
-                if var.startswith('x'):
-                    basic_indices.append(int(var[1:]) - 1)
-                else: # slack s_i
-                    basic_indices.append(num_vars + int(var[1:]) - 1)
-            
-            B_opt = full_A[:, basic_indices]
-            try:
-                det_B = np.linalg.det(B_opt)
-                B_inv_opt = np.linalg.inv(B_opt)
-                x_B_opt = np.dot(B_inv_opt, b)
-            except:
-                det_B = 0
-                B_inv_opt = np.zeros_like(B_opt)
-                x_B_opt = np.zeros_like(b)
-
-            st.markdown("### Calcul pour la Base Optimale")
-            st.markdown(f"Les variables de base à l'optimum sont : **{', '.join(final_basic_vars)}**.")
-            
-            st.markdown("#### 1. Matrice de Base $B$")
-            st.latex(f"B = {matrix_to_latex(B_opt)}")
-            
-            st.markdown("#### 2. Déterminant de $B$")
-            st.latex(f"\\det(B) = {det_B:.2f}")
-            if abs(det_B) > 1e-9:
-                st.markdown(f"Puisque $\\det(B) \\neq 0$, la matrice est inversible.")
-            
-            st.markdown("#### 3. Inverse de $B$ ($B^{-1}$)")
-            st.latex(f"B^{{-1}} = {matrix_to_latex(B_inv_opt)}")
-            
-            st.markdown("#### 4. Calcul de la solution $x_B = B^{-1} b$")
-            st.latex(f"""
-            x_B = {matrix_to_latex(B_inv_opt)} {matrix_to_latex(b)} = {matrix_to_latex(x_B_opt)}
-            """)
-            
-            st.markdown("#### Résultat")
-            
-            # Helper to format float or int
-            def fmt(x):
-                return f"{int(round(x))}" if abs(x - round(x)) < 1e-9 else f"{x:.2f}"
-            
-            st.markdown(f"""
-            Le point optimal est donc :
-            - **CPU ($x_1$)** : {fmt(result['solution'][0])}
-            - **RAM ($x_2$)** : {fmt(result['solution'][1])}
-            - **GPU ($x_3$)** : {fmt(result['solution'][2])}
-            
-            **Profit Maximum** : {fmt(result['max_profit'])} €
-            """)
-
-        # --- 3. Lien avec le Simplexe ---
-        st.markdown("## 3. Lien avec la méthode du Simplexe")
-        st.info("""
-        **Lien explicite avec l'algèbre linéaire :**
-        *   Le système $B x_B = b$ représente l'intersection des contraintes actives.
-        *   L'algorithme du simplexe itère de sommet en sommet (en changeant la base $B$) jusqu'à trouver celui qui maximise $Z$.
-        *   À chaque étape, on calcule $x_B = B^{-1} b$ et on vérifie si on peut améliorer le profit.
+        st.markdown("Avec :")
+        st.latex(f"""
+        A = {matrix_to_latex(np.hstack([A, np.eye(len(b))]))}, \\quad
+        x = \\begin{{pmatrix}} x_{{CPU}} \\\\ x_{{RAM}} \\\\ x_{{GPU}} \\\\ s_1 \\\\ s_2 \\\\ s_3 \\end{{pmatrix}}, \\quad
+        b = {matrix_to_latex(b)}, \\quad
+        c = {matrix_to_latex(np.concatenate([c, np.zeros(len(b))]))}
         """)
 
-        with st.expander("Voir les itérations détaillées du Simplexe (Tableaux)"):
-             for step in result["steps"]:
-                st.markdown(f"**{step['step_name']}**")
-                st.markdown(f"_{step['description']}_")
+        # --- 2. Résolution Algébrique ---
+        st.markdown("## 2. Résolution par la Méthode du Simplexe Inversé")
+        st.info("Cette méthode utilise explicitement l'algèbre matricielle pour itérer d'une base à une autre.")
+        
+        if not result["steps"]:
+            st.warning("Aucune étape disponible.")
+        else:
+            for step in result["steps"]:
+                with st.expander(f"{step['step_name']}", expanded=(step['step_name'] == "Initialisation")):
+                    st.markdown(f"**{step['description']}**")
+                    
+                    mats = step.get("matrices", {})
+                    
+                    if step["step_type"] == "initialization":
+                        st.markdown("#### Base Initiale")
+                        st.latex(f"B = {matrix_to_latex(mats['B_init'])}")
+                        st.markdown("C'est une matrice identité, donc inversible et de déterminant 1.")
+                        
+                    elif step["step_type"] == "iteration":
+                        col1, col2 = st.columns(2)
+                        
+                        with col1:
+                            st.markdown("#### 1. Matrice de Base et Inverse")
+                            st.latex(f"B = {matrix_to_latex(mats['B'])}")
+                            st.latex(f"B^{{-1}} = {matrix_to_latex(mats['B_inv'])}")
+                        
+                        with col2:
+                            st.markdown("#### 2. Solution de Base Actuelle")
+                            st.latex(f"x_B = B^{{-1}} b = {matrix_to_latex(mats['x_B'])}")
+                            st.metric("Valeur de Z", f"{mats['z_val']:.2f}")
+                        
+                        st.markdown("#### 3. Coûts Réduits ($Z_j - C_j$)")
+                        st.markdown("On cherche la variable entrante (celle qui améliore le plus Z).")
+                        
+                        deltas = mats['deltas']
+                        delta_df = pd.DataFrame([deltas])
+                        st.dataframe(delta_df.style.highlight_min(axis=1, color='#ff4b4b'), hide_index=True)
+                        
+                        if "entering_var" in step:
+                            st.success(f"Variable entrante : **{step['entering_var']}** (Coût réduit le plus négatif)")
+                            
+                            st.markdown(f"#### 4. Direction de Descente ($Y$)")
+                            st.latex(f"Y = B^{{-1}} A_{{entrant}} = {matrix_to_latex(mats['Y'])}")
+                            
+                            st.markdown("#### 5. Test du Ratio (Variable Sortante)")
+                            ratios = step["ratios"]
+                            ratio_data = {"Variable de Base": step["basic_vars"], "x_B": mats["x_B"], "Y": mats["Y"], "Ratio": ratios}
+                            st.table(pd.DataFrame(ratio_data))
+                            
+                            st.success(f"Variable sortante : **{step['leaving_var']}** (Plus petit ratio positif)")
+                        else:
+                            st.success("Tous les coûts réduits sont positifs ou nuls. **L'optimum est atteint.**")
+
+            # Final Result Display
+            if result["status"] == "Optimal":
+                st.markdown("## 3. Solution Optimale")
+                st.balloons()
                 
-                # Convert Tableau to LaTeX
-                tableau = step["tableau"]
-                formatted_tableau = [[f"{x:.2f}" for x in row] for row in tableau]
-                num_cols = tableau.shape[1]
-                col_format = "c" * (num_cols - 1) + "|c"
-                
-                latex_rows = []
-                header_row = step["headers"]
-                latex_rows.append(" & ".join([f"\\text{{{h}}}" for h in header_row]))
-                latex_rows.append("\\hline")
-                
-                for i, row in enumerate(formatted_tableau):
-                    latex_rows.append(" & ".join(row))
-                    if i == len(formatted_tableau) - 2: 
-                        latex_rows.append("\\hline")
-                
-                latex_content = " \\\\ ".join(latex_rows)
-                
-                st.latex(f"\\begin{{array}}{{{col_format}}} {latex_content} \\end{{array}}")
-                
-                if step["pivot"]:
-                    st.info(f"📍 Pivot: Ligne {step['pivot'][0]+1}, Colonne {step['headers'][step['pivot'][1]]}")
-                st.divider()
+                final_sol = result["solution"]
+                st.markdown(f"""
+                <div style="background-color: #262730; padding: 20px; border-radius: 10px; border-left: 5px solid #00d2ff;">
+                    <h3>🏆 Résultat Final</h3>
+                    <p>Pour maximiser le profit, l'entreprise doit allouer :</p>
+                    <ul>
+                        <li><b>{int(round(final_sol[0]))}</b> tâches CPU</li>
+                        <li><b>{int(round(final_sol[1]))}</b> tâches RAM</li>
+                        <li><b>{int(round(final_sol[2]))}</b> tâches GPU</li>
+                    </ul>
+                    <h4>Profit Total : {result['max_profit']:.2f} €</h4>
+                </div>
+                """, unsafe_allow_html=True)
 
 if __name__ == "__main__":
     main()
