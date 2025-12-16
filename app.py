@@ -139,12 +139,60 @@ def main():
 
     # --- Problem Statement ---
     st.markdown("""
-    <div class="problem-box">
-        <h4>📋 Énoncé du Problème</h4>
-        <p>Une entreprise de cloud computing exécute trois types de tâches (<b>CPU</b>, <b>RAM</b> et <b>GPU</b>). 
-        L'objectif est de déterminer le nombre optimal de chaque tâche pour maximiser le profit total, 
-        tout en respectant les contraintes de temps des ateliers de traitement.</p>
-    </div>
+<div class="problem-box">
+<h4>📋 Énoncé du Problème & Méthodes de Résolution</h4>
+<p>Une entreprise de Cloud Computing propose <b>3 types de services</b> (variables de décision) à ses clients :</p>
+<ul>
+<li>🖥️ <b>Tâche CPU</b> : Calcul intensif.</li>
+<li>💾 <b>Tâche RAM</b> : Mémoire intensive.</li>
+<li>🎮 <b>Tâche GPU</b> : Rendu graphique et IA.</li>
+</ul>
+<p>Chaque tâche consomme des ressources limitées (les <b>contraintes</b>) disponibles dans nos ateliers. Voici les données actuelles du problème :</p>
+<table style="width:100%; color: #e0e0e0; border-collapse: collapse; margin-bottom: 15px;">
+<tr style="border-bottom: 2px solid #555;">
+<th style="padding: 8px; text-align: left;">Atelier (Ressource)</th>
+<th style="padding: 8px; text-align: center;">Tâche CPU</th>
+<th style="padding: 8px; text-align: center;">Tâche RAM</th>
+<th style="padding: 8px; text-align: center;">Tâche GPU</th>
+<th style="padding: 8px; text-align: center;">Disponibilité Max</th>
+</tr>
+<tr style="background-color: #33343d;">
+<td style="padding: 8px;">Atelier 1</td>
+<td style="padding: 8px; text-align: center;">2 h</td>
+<td style="padding: 8px; text-align: center;">1 h</td>
+<td style="padding: 8px; text-align: center;">0.5 h</td>
+<td style="padding: 8px; text-align: center;"><strong>≤ 20 h</strong></td>
+</tr>
+<tr>
+<td style="padding: 8px;">Atelier 2</td>
+<td style="padding: 8px; text-align: center;">1 h</td>
+<td style="padding: 8px; text-align: center;">2 h</td>
+<td style="padding: 8px; text-align: center;">0.5 h</td>
+<td style="padding: 8px; text-align: center;"><strong>≤ 20 h</strong></td>
+</tr>
+<tr style="background-color: #33343d;">
+<td style="padding: 8px;">Atelier 3</td>
+<td style="padding: 8px; text-align: center;">0.5 h</td>
+<td style="padding: 8px; text-align: center;">0.5 h</td>
+<td style="padding: 8px; text-align: center;">1 h</td>
+<td style="padding: 8px; text-align: center;"><strong>≤ 12 h</strong></td>
+</tr>
+<tr style="border-top: 2px solid #00d2ff;">
+<td style="padding: 8px;"><strong>Profit Unitaire</strong></td>
+<td style="padding: 8px; text-align: center; color: #00d2ff;"><strong>5 €</strong></td>
+<td style="padding: 8px; text-align: center; color: #00d2ff;"><strong>10 €</strong></td>
+<td style="padding: 8px; text-align: center; color: #00d2ff;"><strong>15 €</strong></td>
+<td style="padding: 8px;"></td>
+</tr>
+</table>
+<p>L'objectif est de trouver la combinaison optimale de services à vendre pour <b>Maximiser le Profit Global</b> sans dépasser les capacités disponibles.</p>
+<p>Cette application propose 3 approches pour résoudre ce problème :</p>
+<ul>
+<li><b>📊 Résolution Graphique (3D)</b> : Visualisation du polyèdre des contraintes et identification géométrique de l'optimum.</li>
+<li><b>🧮 Résolution Algébrique (Simplexe Révisé)</b> : Approche matricielle moderne utilisée par les solveurs industriels.</li>
+<li><b>📋 Résolution par Tableaux (Simplexe Standard)</b> : Méthode pédagogique affichant le tableau complet pas à pas.</li>
+</ul>
+</div>
     """, unsafe_allow_html=True)
 
     # --- Sidebar / Data Input ---
@@ -486,7 +534,6 @@ def main():
             </ul>
         </div>
         """, unsafe_allow_html=True)
-        st.balloons()
 
 if __name__ == "__main__":
     main()
