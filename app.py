@@ -150,28 +150,28 @@ def main():
 <p>Chaque tâche consomme des ressources limitées (les <b>contraintes</b>) disponibles dans nos ateliers. Voici les données actuelles du problème :</p>
 <table style="width:100%; color: #e0e0e0; border-collapse: collapse; margin-bottom: 15px;">
 <tr style="border-bottom: 2px solid #555;">
-<th style="padding: 8px; text-align: left;">Atelier (Ressource)</th>
+<th style="padding: 8px; text-align: left;">Ressource (Service)</th>
 <th style="padding: 8px; text-align: center;">Tâche CPU</th>
 <th style="padding: 8px; text-align: center;">Tâche RAM</th>
 <th style="padding: 8px; text-align: center;">Tâche GPU</th>
 <th style="padding: 8px; text-align: center;">Disponibilité Max</th>
 </tr>
 <tr style="background-color: #33343d;">
-<td style="padding: 8px;">Atelier 1</td>
+<td style="padding: 8px;">Service 1</td>
 <td style="padding: 8px; text-align: center;">2 h</td>
 <td style="padding: 8px; text-align: center;">1 h</td>
 <td style="padding: 8px; text-align: center;">0.5 h</td>
 <td style="padding: 8px; text-align: center;"><strong>≤ 20 h</strong></td>
 </tr>
 <tr>
-<td style="padding: 8px;">Atelier 2</td>
+<td style="padding: 8px;">Service 2</td>
 <td style="padding: 8px; text-align: center;">1 h</td>
 <td style="padding: 8px; text-align: center;">2 h</td>
 <td style="padding: 8px; text-align: center;">0.5 h</td>
 <td style="padding: 8px; text-align: center;"><strong>≤ 20 h</strong></td>
 </tr>
 <tr style="background-color: #33343d;">
-<td style="padding: 8px;">Atelier 3</td>
+<td style="padding: 8px;">Service 3</td>
 <td style="padding: 8px; text-align: center;">0.5 h</td>
 <td style="padding: 8px; text-align: center;">0.5 h</td>
 <td style="padding: 8px; text-align: center;">1 h</td>
@@ -202,7 +202,7 @@ def main():
 
     # Default Data
     default_data = {
-        "Atelier": ["Tache 1", "Tache 2", "Tache 3"],
+        "Ressource": ["Service 1", "Service 2", "Service 3"],
         "CPU (h)": [2.0, 1.0, 0.5],
         "RAM (h)": [1.0, 2.0, 0.5],
         "GPU (h)": [0.5, 0.5, 1.0],
@@ -285,7 +285,7 @@ def main():
                     opacity=0.3,
                     showscale=False,
                     colorscale=[[0, colors[i % len(colors)]], [1, colors[i % len(colors)]]],
-                    name=f"Contrainte {i+1} ({df_constraints['Atelier'][i]})",
+                    name=f"Contrainte {i+1} ({df_constraints['Ressource'][i]})",
                     colorbar=dict(len=0.5, y=0.5) # Hack to hide colorbar or manage it
                 ))
                 
@@ -381,7 +381,7 @@ def main():
         obj_func = f"max Z = {c[0]} x_{{CPU}} + {c[1]} x_{{RAM}} + {c[2]} x_{{GPU}}"
         constraints_latex = ""
         for i in range(len(b)):
-            constraints_latex += f"{A[i][0]} x_{{CPU}} + {A[i][1]} x_{{RAM}} + {A[i][2]} x_{{GPU}} \\le {b[i]} \\quad (\\text{{{df_constraints['Atelier'][i]}}}) \\\\"
+            constraints_latex += f"{A[i][0]} x_{{CPU}} + {A[i][1]} x_{{RAM}} + {A[i][2]} x_{{GPU}} \\le {b[i]} \\quad (\\text{{{df_constraints['Ressource'][i]}}}) \\\\"
         
         latex_str = f"""
         \\text{{Fonction objectif :}} \\\\
