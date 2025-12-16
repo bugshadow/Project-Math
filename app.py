@@ -140,12 +140,12 @@ def main():
     # --- Problem Statement ---
     st.markdown("""
 <div class="problem-box">
-<h4>📋 Énoncé du Problème & Méthodes de Résolution</h4>
+<h4> Énoncé du Problème & Méthodes de Résolution</h4>
 <p>Une entreprise de Cloud Computing propose <b>3 types de services</b> (variables de décision) à ses clients :</p>
 <ul>
-<li>🖥️ <b>Tâche CPU</b> : Calcul intensif.</li>
-<li>💾 <b>Tâche RAM</b> : Mémoire intensive.</li>
-<li>🎮 <b>Tâche GPU</b> : Rendu graphique et IA.</li>
+<li> <b>Tâche CPU</b> : Calcul intensif.</li>
+<li> <b>Tâche RAM</b> : Mémoire intensive.</li>
+<li> <b>Tâche GPU</b> : Rendu graphique et IA.</li>
 </ul>
 <p>Chaque tâche consomme des ressources limitées (les <b>contraintes</b>) disponibles dans nos ateliers. Voici les données actuelles du problème :</p>
 <table style="width:100%; color: #e0e0e0; border-collapse: collapse; margin-bottom: 15px;">
@@ -188,9 +188,9 @@ def main():
 <p>L'objectif est de trouver la combinaison optimale de services à vendre pour <b>Maximiser le Profit Global</b> sans dépasser les capacités disponibles.</p>
 <p>Cette application propose 3 approches pour résoudre ce problème :</p>
 <ul>
-<li><b>📊 Résolution Graphique (3D)</b> : Visualisation du polyèdre des contraintes et identification géométrique de l'optimum.</li>
-<li><b>🧮 Résolution Algébrique (Simplexe Révisé)</b> : Approche matricielle moderne utilisée par les solveurs industriels.</li>
-<li><b>📋 Résolution par Tableaux (Simplexe Standard)</b> : Méthode pédagogique affichant le tableau complet pas à pas.</li>
+<li><b> Résolution Graphique (3D)</b> : Visualisation du polyèdre des contraintes et identification géométrique de l'optimum.</li>
+<li><b> Résolution Algébrique (Simplexe Révisé)</b> : Approche matricielle moderne utilisée par les solveurs industriels.</li>
+<li><b> Résolution par Tableaux (Simplexe Standard)</b> : Méthode pédagogique affichant le tableau complet pas à pas.</li>
 </ul>
 </div>
     """, unsafe_allow_html=True)
