@@ -206,7 +206,7 @@ def main():
         st.warning(f"Attention: Le solveur n'a pas trouvé de solution optimale. Statut: {result['status']}")
 
     # --- Tabs for Visualization vs Algebra ---
-    tab_graph, tab_algebra = st.tabs(["📊 Résolution Graphique (3D)", "🧮 Résolution Algébrique (Simplexe)"])
+    tab_graph, tab_algebra, tab_tableau = st.tabs(["📊 Résolution Graphique (3D)", "🧮 Résolution Algébrique (Moderne)", "📋 Résolution par Tableaux"])
 
     with tab_graph:
         st.markdown("### Visualisation de la Zone Admissible et des Contraintes")
@@ -415,24 +415,78 @@ def main():
                         else:
                             st.success("Tous les coûts réduits sont positifs ou nuls. **L'optimum est atteint.**")
 
-            # Final Result Display
-            if result["status"] == "Optimal":
-                st.markdown("## 3. Solution Optimale")
-                st.balloons()
+    with tab_tableau:
+        st.markdown("## 3. Méthode du Simplexe (Tableaux)")
+        st.info("Cette vue montre l'évolution du tableau complet à chaque itération.")
+        
+        tableau_steps = solver.solve_tableau()
+        
+        for step in tableau_steps:
+            st.markdown(f"### {step['description']}")
+            
+            # Format Tableau for Display
+            df_tableau = pd.DataFrame(step["tableau"], columns=step["headers"])
+            
+            # Add Row Labels (Basic Variable for each row, Z for last)
+            # Row headers in step['basic_vars'] correspond to constraints rows
+            # Last row is Z
+            if "basic_vars" in step:
+                row_labels = step["basic_vars"]
+            else:
+                row_labels = [f"Row {i}" for i in range(len(df_tableau)-1)] + ["Z"]
                 
-                final_sol = result["solution"]
+            df_tableau.index = row_labels
+            
+            # Highlight Pivot if info exists (from previous step usually points to this one? No, pivot info is IN the step deciding it)
+            # Wait, my logic in solver stores pivot_info in the step BEFORE the operation.
+            # So if I am at step 0, I might have pivot_info for what happens NEXT.
+            
+            st.dataframe(df_tableau.style.format("{:.2f}").background_gradient(cmap="Blues", axis=None), use_container_width=True)
+            
+            if "pivot_info" in step:
+                p_info = step["pivot_info"]
                 st.markdown(f"""
-                <div style="background-color: #262730; padding: 20px; border-radius: 10px; border-left: 5px solid #00d2ff;">
-                    <h3>🏆 Résultat Final</h3>
-                    <p>Pour maximiser le profit, l'entreprise doit allouer :</p>
-                    <ul>
-                        <li><b>{int(round(final_sol[0]))}</b> tâches CPU</li>
-                        <li><b>{int(round(final_sol[1]))}</b> tâches RAM</li>
-                        <li><b>{int(round(final_sol[2]))}</b> tâches GPU</li>
-                    </ul>
-                    <h4>Profit Total : {result['max_profit']:.2f} €</h4>
-                </div>
-                """, unsafe_allow_html=True)
+                **Analyse du tableau :**
+                - **Variable Entrante** (Colonne Pivot) : `{p_info['entering_var']}` (Coût réduit le plus négatif).
+                - **Variable Sortante** (Ligne Pivot) : `{p_info['leaving_var']}` (Plus petit ratio positif).
+                - **Pivot** : `{p_info['pivot_element']:.2f}` (Intersection).
+                """)
+                
+                with st.expander("Détails des Ratios"):
+                    ratios = p_info["ratios"]
+                    df_ratios = pd.DataFrame({
+                        "Variable Base": step["basic_vars"][:-1], # Exclude Z
+                        "Ratio (RHS/Col)": [f"{r:.2f}" if r != np.inf else "Inf" for r in ratios]
+                    })
+                    st.table(df_ratios)
+
+            if "status" in step and step["status"] == "Optimal":
+                st.success("✅ Solution Optimale Atteinte !")
+
+    # Final Result Display (Moved outside tabs to be always visible at bottom)
+    if result["status"] == "Optimal":
+        st.markdown("---")
+        st.markdown("## 🏆 Résultat Final ")
+        
+        final_sol = result["solution"]
+        
+        # Conversion DH
+        taux_eur_dh = 10.9
+        profit_eur = result['max_profit']
+        profit_dh = profit_eur * taux_eur_dh
+        
+        st.markdown(f"""
+        <div style="background-color: #262730; padding: 20px; border-radius: 10px; border-left: 5px solid #00d2ff;">
+            <h3>Profit Total : {profit_eur:.2f} € = {profit_dh:.2f} DH</h3>
+            <p>Allocation optimale :</p>
+            <ul>
+                <li><b>{int(round(final_sol[0]))}</b> tâches CPU</li>
+                <li><b>{int(round(final_sol[1]))}</b> tâches RAM</li>
+                <li><b>{int(round(final_sol[2]))}</b> tâches GPU</li>
+            </ul>
+        </div>
+        """, unsafe_allow_html=True)
+        st.balloons()
 
 if __name__ == "__main__":
     main()

@@ -204,3 +204,150 @@ class SimplexSolver:
             "solution": solution,
             "steps": self.steps
         }
+
+    def solve_tableau(self):
+        """
+        Solves the LP using the full Tableau method.
+        Returns a list of steps, where each step contains the tableau state.
+        """
+        steps = []
+        
+        # --- 1. Initialization ---
+        # Variables: x1..xn, s1..sm
+        num_vars = self.num_vars
+        num_slack = self.num_constraints
+        total_cols = num_vars + num_slack
+        
+        # Create Initial Tableau
+        # Structure: Rows = Constraints + Z (last row)
+        # Cols = x vars + s vars + RHS
+        
+        tableau = np.zeros((self.num_constraints + 1, total_cols + 1))
+        
+        # Fill Constraints (A matrix)
+        tableau[:self.num_constraints, :num_vars] = self.A
+        
+        # Fill Slack Variables (Identity)
+        tableau[:self.num_constraints, num_vars:total_cols] = np.eye(self.num_slack if hasattr(self, 'num_slack') else self.num_constraints)
+        
+        # Fill RHS (b vector)
+        tableau[:self.num_constraints, -1] = self.b
+        
+        # Fill Z Row
+        # Max Z = cx  =>  Z - cx = 0
+        # So coefficients are -c for x vars, 0 for slack
+        tableau[-1, :num_vars] = -self.c
+        
+        # Variable Names
+        col_headers = [f'x{i+1}' for i in range(num_vars)] + \
+                      [f's{i+1}' for i in range(self.num_constraints)] + \
+                      ['RHS']
+        
+        row_headers = [f's{i+1}' for i in range(self.num_constraints)] + ['Z'] # Initial basis is slack
+        
+        steps.append({
+            "step_id": 0,
+            "description": "Tableau Initial",
+            "tableau": tableau.copy(),
+            "headers": col_headers,
+            "basic_vars": row_headers[:] # Copy list
+        })
+        
+        iteration = 0
+        max_iter = 100
+        
+        while iteration < max_iter:
+            # --- 2. Check Optimality ---
+            # Look for most negative value in Z row (Last row, excluding RHS)
+            z_row = tableau[-1, :-1]
+            min_val = np.min(z_row)
+            
+            if min_val >= -1e-9:
+                steps.append({
+                    "step_id": iteration + 1,
+                    "description": "Solution Optimale Trouvée (Tous coeff Z >= 0)",
+                    "tableau": tableau.copy(),
+                    "headers": col_headers,
+                    "status": "Optimal"
+                })
+                break
+                
+            # --- 3. Pivot Column (Entering Variable) ---
+            pivot_col_idx = np.argmin(z_row)
+            entering_var = col_headers[pivot_col_idx]
+            
+            # --- 4. Pivot Row (Leaving Variable) ---
+            # Ratio test: RHS / Column coeff, for coeff > 0
+            ratios = []
+            valid_rows = []
+            
+            min_ratio = np.inf
+            pivot_row_idx = -1
+            
+            for i in range(self.num_constraints):
+                col_val = tableau[i, pivot_col_idx]
+                rhs_val = tableau[i, -1]
+                
+                if col_val > 1e-9:
+                    ratio = rhs_val / col_val
+                    ratios.append(ratio)
+                    valid_rows.append(i)
+                    
+                    if ratio < min_ratio:
+                        min_ratio = ratio
+                        pivot_row_idx = i
+                else:
+                    ratios.append(np.inf)
+            
+            if pivot_row_idx == -1:
+                steps.append({
+                    "step_id": iteration + 1,
+                    "description": "Problème non borné",
+                    "tableau": tableau.copy(),
+                    "headers": col_headers,
+                    "status": "Unbounded"
+                })
+                break
+            
+            leaving_var = row_headers[pivot_row_idx]
+            pivot_element = tableau[pivot_row_idx, pivot_col_idx]
+            
+            # Record step before operation
+            steps[-1]["pivot_info"] = {
+                "entering_var": entering_var,
+                "leaving_var": leaving_var,
+                "pivot_row": pivot_row_idx,
+                "pivot_col": pivot_col_idx,
+                "pivot_element": pivot_element,
+                "ratios": ratios
+            }
+            
+            # --- 5. Pivot Operation (Gaussian Elimination) ---
+            new_tableau = tableau.copy()
+            
+            # Normalize Pivot Row
+            new_tableau[pivot_row_idx, :] = tableau[pivot_row_idx, :] / pivot_element
+            
+            # Update other rows
+            for i in range(tableau.shape[0]):
+                if i != pivot_row_idx:
+                    factor = tableau[i, pivot_col_idx]
+                    new_tableau[i, :] = tableau[i, :] - factor * new_tableau[pivot_row_idx, :]
+            
+            tableau = new_tableau
+            
+            # Update Basis
+            row_headers[pivot_row_idx] = entering_var
+            
+            steps.append({
+                "step_id": iteration + 1,
+                "description": f"Itération {iteration+1}",
+                "tableau": tableau.copy(),
+                "headers": col_headers,
+                "basic_vars": row_headers[:]
+            })
+            
+            iteration += 1
+            
+        return steps
+
